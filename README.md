@@ -137,19 +137,25 @@ Provide clear steps for developers to set up, build, and run the game from the s
 If the game is designed to be extensible, explain how developers can add new features or modify existing ones.
 
 ## 8. Troubleshooting
-Common issues and their solutions.
+### Player and Enemy Sprites Not Visible
+If the game canvas is visible, along with the score and border, but the player and enemy sprites are not appearing, it is likely due to an asset loading or initialization timing issue.
 
-### Invisible Player/Enemies Issue
+**Common Causes:**
+*   **Images not fully loaded:** Drawing functions attempting to render image elements before the browser has completely loaded them.
+*   **Incorrect image paths:** The `src` attribute of the `Image` objects pointing to non-existent or misnamed image files.
+*   **`init()` called prematurely or multiple times:** The game initialization logic running before all necessary assets are ready, or being re-triggered incorrectly.
 
-**Problem:**
-Initially, players and enemies were not visible on the screen, leading to a broken game experience. This was caused by game assets (specifically images for the player and enemy sprites) not being fully loaded into memory before the game attempted to draw them. The drawing functions were called on uninitialized or incomplete image objects, resulting in nothing being rendered.
+**Solution in `script.js`:**
+The `script.js` file now includes a robust asset loading mechanism (`loadGameAssets()` function) that ensures:
+1.  Both `player.png` and `enemy.png` images are loaded.
+2.  The `init()` function (which sets up the game environment and starts the game loop) is called only once, precisely *after* all required image assets have successfully completed loading.
+3.  Error handlers are in place for image loading (`.onerror`) to log issues if an image fails to load.
+4.  The `drawPlayer()` and `drawEnemies()` functions include checks (`player.image.complete`, `enemy.image.complete`) to ensure that image data is available before attempting to draw.
 
-**Solution:**
-The issue was resolved by implementing a robust asset pre-loading mechanism.
-1.  **Image Pre-loading:** All necessary image assets for the player, enemies, projectiles, and background elements are now loaded into memory at the very beginning of the game's initialization phase.
-2.  **Asset Loading Check:** A system was put in place to ensure that the game loop and drawing operations do not commence until all critical assets have been successfully loaded. This often involves a loading screen or a simple check that delays the start of the main game until all resources are ready.
-
-This ensures that when drawing functions are called, valid image data is available, making the player and enemies visible and allowing the game to function as intended.
+**Debugging Steps:**
+*   **Check Browser Console:** Open your browser's developer console (F12) and look for any "Failed to load image" errors or JavaScript errors related to drawing.
+*   **Verify Asset Paths:** Ensure `assets/player.png` and `assets/enemy.png` exist in the correct location relative to your `index.html` file.
+*   **Inspect `console.log` messages:** The `script.js` now includes `console.log` messages in `loadGameAssets()`, `init()`, `createPlayer()`, `createEnemy()`, `drawPlayer()`, and `drawEnemies()` to provide insights into the asset loading and drawing process. Verify these messages appear as expected.
 
 ## 9. Future Enhancements
 Ideas or plans for future updates and features.
