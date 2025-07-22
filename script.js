@@ -99,8 +99,25 @@ class Enemy {
     }
 }
 
+// Helper function for AABB collision detection
+function areColliding(rect1, rect2) {
+    return rect1.x < rect2.x + rect2.width &&
+           rect1.x + rect1.width > rect2.x &&
+           rect1.y < rect2.y + rect2.height &&
+           rect1.y + rect1.height > rect2.y;
+}
+
 function init() {
     player = new Player();
+    enemies = [];
+    playerBullets = [];
+    enemyBullets = [];
+    score = 0;
+    gameOver = false;
+    document.getElementById('score').innerText = score;
+    document.getElementById('gameOver').style.display = 'none';
+    document.getElementById('restartInstructions').style.display = 'none';
+
     createEnemies();
     gameLoop();
 }
@@ -159,10 +176,7 @@ function update() {
     // Player bullet and enemy collision
     playerBullets.forEach((bullet, bIndex) => {
         enemies.forEach((enemy, eIndex) => {
-            if (bullet.x < enemy.x + enemy.width &&
-                bullet.x + bullet.width > enemy.x &&
-                bullet.y < enemy.y + enemy.height &&
-                bullet.y + bullet.height > enemy.y) {
+            if (areColliding(bullet, enemy)) {
                 
                 // Collision
                 playerBullets.splice(bIndex, 1); // Remove bullet
@@ -181,10 +195,7 @@ function update() {
 
     // Enemy bullet and player collision
     enemyBullets.forEach((bullet, bIndex) => {
-        if (bullet.x < player.x + player.width &&
-            bullet.x + bullet.width > player.x &&
-            bullet.y < player.y + player.height &&
-            bullet.y + bullet.height > player.y) {
+        if (areColliding(bullet, player)) {
             
             // Collision
             enemyBullets.splice(bIndex, 1); // Remove bullet
@@ -194,10 +205,7 @@ function update() {
 
     // Enemy and player collision
     enemies.forEach(enemy => {
-        if (enemy.x < player.x + player.width &&
-            enemy.x + enemy.width > player.x &&
-            enemy.y < player.y + player.height &&
-            enemy.y + enemy.height > player.y) {
+        if (areColliding(enemy, player)) {
             
             gameOver = true;
         }
@@ -205,6 +213,7 @@ function update() {
 
     if (gameOver) {
         document.getElementById('gameOver').style.display = 'block';
+        document.getElementById('restartInstructions').style.display = 'block';
     }
 }
 
@@ -217,15 +226,31 @@ function draw() {
     enemies.forEach(enemy => enemy.draw());
 }
 
+let animationFrameId; // To store the requestAnimationFrame ID
+
 function gameLoop() {
     update();
     draw();
-    requestAnimationFrame(gameLoop);
+    if (!gameOver) {
+        animationFrameId = requestAnimationFrame(gameLoop);
+    } else {
+        cancelAnimationFrame(animationFrameId); // Stop the loop when game is over
+    }
+}
+
+function restartGame() {
+    cancelAnimationFrame(animationFrameId); // Ensure any pending animation frame is cancelled
+    init();
 }
 
 // Input Handling
 document.addEventListener('keydown', e => {
-    if (gameOver) return;
+    if (gameOver) {
+        if (e.key === 'r' || e.key === 'R') {
+            restartGame();
+        }
+        return;
+    }
     if (e.key === 'ArrowLeft') {
         player.dx = -PLAYER_SPEED;
     } else if (e.key === 'ArrowRight') {
