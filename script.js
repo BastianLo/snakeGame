@@ -1,26 +1,64 @@
+
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
+const scoreDisplay = document.getElementById('scoreDisplay');
+const gameOverScreen = document.getElementById('gameOverScreen');
+const finalScoreDisplay = document.getElementById('finalScore');
+const restartInstructions = document.getElementById('restartInstructions');
+const shopButton = document.getElementById('shopButton');
+const shopModal = document.getElementById('shopModal');
+const closeModal = document.querySelector('.close-button');
+const currentScoreDisplay = document.getElementById('currentScoreDisplay');
+const buyDoubleShotBtn = document.getElementById('buyDoubleShot');
+const buyFireRateBtn = document.getElementById('buyFireRate');
+const doubleShotCostDisplay = document.getElementById('doubleShotCost');
+const fireRateCostDisplay = document.getElementById('fireRateCost');
+const fireRateLevelDisplay = document.getElementById('fireRateLevel');
+const maxFireRateLevelDisplay = document.getElementById('maxFireRateLevel');
 
-canvas.width = 800;
-canvas.height = 600;
 
+// Game settings
+const PLAYER_SPEED = 5;
+const BULLET_SPEED = 7;
+const ENEMY_BULLET_SPEED = 3;
+const ENEMY_DESCENT_SPEED = 15; // How much enemies move down after reaching edge
+let INITIAL_ENEMY_SPEED = 1;
+
+// Upgrade costs
+const DOUBLE_SHOT_COST = 500;
+const FIRE_RATE_BASE_COST = 200;
+const MAX_FIRE_RATE_LEVEL = 5;
+const FIRE_RATE_COOLDOWN_REDUCTION_PER_LEVEL = 50; // ms
+
+// Game state variables
 let player;
-let enemies = [];
 let playerBullets = [];
+let enemies = [];
 let enemyBullets = [];
 let score = 0;
 let gameOver = false;
+let gameLoopId; // To store requestAnimationFrame ID for stopping
+let keys = {}; // To track pressed keys
 
-const PLAYER_SPEED = 5;
-const BULLET_SPEED = 7;
-const ENEMY_SPEED = 1;
-const ENEMY_DROP_SPEED = 20;
-const ENEMY_BULLET_SPEED = 4;
-const ENEMY_ROWS = 5;
-const ENEMY_COLS = 10;
-const ENEMY_SPACING = 50;
+// Difficulty scaling
+let enemySpeedMultiplier = 1;
+let currentEnemySpeed = INITIAL_ENEMY_SPEED;
+let enemiesPerRow = 5; // Initial number of enemies
+let enemyRows = 3; // Initial number of rows
+let spawnInterval = 3000; // Time in ms between enemy spawns
+let lastEnemySpawnTime = 0;
+let level = 0; // Tracks difficulty level
 
-// Player
+// Player Fire Rate
+let playerFireCooldown = 300; // milliseconds
+let lastPlayerFireTime = 0;
+
+// Upgrades
+let hasDoubleShot = false;
+let fireRateLevel = 0;
+
+
+// Game Entities
 class Player {
     constructor() {
         this.width = 50;
@@ -28,7 +66,6 @@ class Player {
         this.x = canvas.width / 2 - this.width / 2;
         this.y = canvas.height - this.height - 10;
         this.color = 'lime';
-        this.dx = 0; // movement direction
     }
 
     draw() {
@@ -37,31 +74,28 @@ class Player {
     }
 
     update() {
-        this.x += this.dx;
-
-        // Prevent player from going off-screen
-        if (this.x < 0) {
-            this.x = 0;
+        if (keys['ArrowLeft'] && this.x > 0) {
+            this.x -= PLAYER_SPEED;
         }
-        if (this.x + this.width > canvas.width) {
-            this.x = canvas.width - this.width;
+        if (keys['ArrowRight'] && this.x < canvas.width - this.width) {
+            this.x += PLAYER_SPEED;
         }
     }
 
-    shoot() {
-        playerBullets.push(new Bullet(this.x + this.width / 2 - 2.5, this.y, -BULLET_SPEED, 'lime'));
+    getRect() {
+        return { x: this.x, y: this.y, width: this.width, height: this.height };
     }
 }
 
-// Bullet
 class Bullet {
-    constructor(x, y, dy, color) {
+    constructor(x, y, color, speed, type) {
         this.width = 5;
-        this.height = 10;
-        this.x = x;
+        this.height = 15;
+        this.x = x - this.width / 2;
         this.y = y;
-        this.dy = dy; // vertical speed
         this.color = color;
+        this.speed = speed;
+        this.type = type; // 'player' or 'enemy'
     }
 
     draw() {
@@ -70,11 +104,14 @@ class Bullet {
     }
 
     update() {
-        this.y += this.dy;
+        this.y -= this.speed;
+    }
+
+    getRect() {
+        return { x: this.x, y: this.y, width: this.width, height: this.height };
     }
 }
 
-// Enemy
 class Enemy {
     constructor(x, y) {
         this.width = 40;
@@ -82,7 +119,9 @@ class Enemy {
         this.x = x;
         this.y = y;
         this.color = 'red';
-        this.dx = ENEMY_SPEED;
+        this.direction = 1; // 1 for right, -1 for left
+        this.fireCooldown = Math.random() * 2000 + 1000; // 1 to 3 seconds
+        this.lastFireTime = Date.now();
     }
 
     draw() {
@@ -91,11 +130,24 @@ class Enemy {
     }
 
     update() {
-        this.x += this.dx;
+        this.x += currentEnemySpeed * this.direction;
+
+        // Check for boundary collision and change direction
+        if (this.x + this.width > canvas.width || this.x < 0) {
+            this.direction *= -1; // Reverse direction
+            this.y += ENEMY_DESCENT_SPEED; // Move down
+        }
+
+        // Enemy firing
+        if (Date.now() - this.lastFireTime > this.fireCooldown) {
+            enemyBullets.push(new Bullet(this.x + this.width / 2, this.y + this.height, 'orange', -ENEMY_BULLET_SPEED, 'enemy'));
+            this.lastFireTime = Date.now();
+            this.fireCooldown = Math.random() * 2000 + 1000; // Reset cooldown
+        }
     }
 
-    shoot() {
-        enemyBullets.push(new Bullet(this.x + this.width / 2 - 2.5, this.y + this.height, ENEMY_BULLET_SPEED, 'yellow'));
+    getRect() {
+        return { x: this.x, y: this.y, width: this.width, height: this.height };
     }
 }
 
@@ -107,163 +159,266 @@ function areColliding(rect1, rect2) {
            rect1.y + rect1.height > rect2.y;
 }
 
+// Game Initialization
 function init() {
+    // Reset all game state variables
     player = new Player();
-    enemies = [];
     playerBullets = [];
+    enemies = [];
     enemyBullets = [];
     score = 0;
     gameOver = false;
-    document.getElementById('score').innerText = score;
-    document.getElementById('gameOver').style.display = 'none';
-    document.getElementById('restartInstructions').style.display = 'none';
+    keys = {};
 
-    createEnemies();
-    gameLoop();
+    // Reset difficulty
+    enemySpeedMultiplier = 1;
+    currentEnemySpeed = INITIAL_ENEMY_SPEED;
+    enemiesPerRow = 5;
+    enemyRows = 3;
+    spawnInterval = 3000;
+    lastEnemySpawnTime = 0;
+    level = 0;
+
+    // Reset upgrades
+    hasDoubleShot = false;
+    fireRateLevel = 0;
+    playerFireCooldown = 300; // Reset to default
+
+    scoreDisplay.textContent = `Score: ${score}`;
+    gameOverScreen.style.display = 'none';
+    restartInstructions.style.display = 'none';
+    shopModal.style.display = 'none'; // Ensure shop is closed on restart
+
+    updateShopUI(); // Update shop state on init
 }
 
-function createEnemies() {
-    for (let r = 0; r < ENEMY_ROWS; r++) {
-        for (let c = 0; c < ENEMY_COLS; c++) {
-            enemies.push(new Enemy(50 + c * ENEMY_SPACING, 50 + r * ENEMY_SPACING));
-        }
+// Game Loop
+function gameLoop(timestamp) {
+    if (gameOver) {
+        cancelAnimationFrame(gameLoopId);
+        return;
     }
+
+    const deltaTime = timestamp - (gameLoop.lastFrameTime || timestamp);
+    gameLoop.lastFrameTime = timestamp;
+
+    update(deltaTime);
+    draw();
+
+    gameLoopId = requestAnimationFrame(gameLoop);
 }
 
-function update() {
-    if (gameOver) return;
-
+// Update game state
+function update(deltaTime) {
     player.update();
 
-    // Update player bullets
+    // Player bullets update and removal
     playerBullets = playerBullets.filter(bullet => {
         bullet.update();
-        return bullet.y > 0;
+        return bullet.y > 0; // Keep bullets on screen
     });
 
-    // Update enemy bullets
+    // Enemy bullets update and removal
     enemyBullets = enemyBullets.filter(bullet => {
         bullet.update();
-        return bullet.y < canvas.height;
+        return bullet.y < canvas.height; // Keep bullets on screen
     });
 
-    // Update enemies
-    let hitWall = false;
-    enemies.forEach(enemy => {
-        enemy.update();
-        if (enemy.x + enemy.width > canvas.width || enemy.x < 0) {
-            hitWall = true;
+    // Enemy update and spawning
+    enemies.forEach(enemy => enemy.update());
+
+    // Continuous enemy spawning and difficulty scaling
+    if (timestamp - lastEnemySpawnTime > spawnInterval) {
+        spawnEnemies();
+        lastEnemySpawnTime = timestamp;
+        level++; // Increment level for difficulty tracking
+
+        // Increase difficulty
+        currentEnemySpeed = INITIAL_ENEMY_SPEED * (1 + level * 0.1); // Speed increases per level
+        if (level % 5 === 0) { // Every 5 levels, increase enemies per row
+            enemiesPerRow++;
+            if (enemiesPerRow > 10) enemiesPerRow = 10; // Cap max enemies per row
         }
-    });
-
-    if (hitWall) {
-        enemies.forEach(enemy => {
-            enemy.dx *= -1; // Reverse horizontal direction
-            enemy.y += ENEMY_DROP_SPEED; // Drop down
-            if (enemy.y + enemy.height > player.y) {
-                gameOver = true; // Enemies reached player
-            }
-        });
+        spawnInterval = Math.max(1000, spawnInterval - 50); // Decrease spawn interval, with a min
     }
 
-    // Enemy shooting (randomly)
-    if (Math.random() < 0.02 && enemies.length > 0) { // Adjust probability for shooting
-        const randomEnemy = enemies[Math.floor(Math.random() * enemies.length)];
-        randomEnemy.shoot();
-    }
 
-    // Collision Detection
-    // Player bullet and enemy collision
+    // Collision detection
+    // Player bullets vs. Enemies
     playerBullets.forEach((bullet, bIndex) => {
         enemies.forEach((enemy, eIndex) => {
-            if (areColliding(bullet, enemy)) {
-                
-                // Collision
-                playerBullets.splice(bIndex, 1); // Remove bullet
-                enemies.splice(eIndex, 1); // Remove enemy
-                score += 10;
-                document.getElementById('score').innerText = score;
-
-                // Check for game win
-                if (enemies.length === 0) {
-                    gameOver = true;
-                    document.getElementById('gameOver').innerText = 'YOU WIN!';
-                }
+            if (areColliding(bullet.getRect(), enemy.getRect())) {
+                playerBullets.splice(bIndex, 1);
+                enemies.splice(eIndex, 1);
+                score += 100;
+                scoreDisplay.textContent = `Score: ${score}`;
+                updateShopUI(); // Update score in shop
             }
         });
     });
 
-    // Enemy bullet and player collision
+    // Enemy bullets vs. Player
     enemyBullets.forEach((bullet, bIndex) => {
-        if (areColliding(bullet, player)) {
-            
-            // Collision
-            enemyBullets.splice(bIndex, 1); // Remove bullet
-            gameOver = true;
+        if (areColliding(bullet.getRect(), player.getRect())) {
+            enemyBullets.splice(bIndex, 1);
+            endGame(false); // Player hit, game over
         }
     });
 
-    // Enemy and player collision
+    // Enemies vs. Player
     enemies.forEach(enemy => {
-        if (areColliding(enemy, player)) {
-            
-            gameOver = true;
+        if (areColliding(enemy.getRect(), player.getRect())) {
+            endGame(false); // Enemy hit player, game over
+        }
+        if (enemy.y + enemy.height > canvas.height) {
+            endGame(false); // Enemy reached bottom, game over
         }
     });
 
-    if (gameOver) {
-        document.getElementById('gameOver').style.display = 'block';
-        document.getElementById('restartInstructions').style.display = 'block';
+    // Win condition (if any, currently endless, so no win condition here)
+    // If (enemies.length === 0 && level > X) might be a win for a level-based game.
+}
+
+// Draw game elements
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear canvas
+    player.draw();
+    playerBullets.forEach(bullet => bullet.draw());
+    enemies.forEach(enemy => enemy.draw());
+    enemyBullets.forEach(bullet => bullet.draw());
+}
+
+// Spawn a wave of enemies
+function spawnEnemies() {
+    const startX = 50;
+    const startY = 50;
+    const enemySpacing = 60;
+
+    for (let r = 0; r < enemyRows; r++) {
+        for (let i = 0; i < enemiesPerRow; i++) {
+            const x = startX + i * enemySpacing;
+            const y = startY + r * enemySpacing;
+            enemies.push(new Enemy(x, y));
+        }
     }
 }
 
-function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear canvas
-
-    player.draw();
-    playerBullets.forEach(bullet => bullet.draw());
-    enemyBullets.forEach(bullet => bullet.draw());
-    enemies.forEach(enemy => enemy.draw());
+// Game Over
+function endGame(win) {
+    gameOver = true;
+    gameOverScreen.style.display = 'block';
+    finalScoreDisplay.textContent = `Final Score: ${score}`;
+    restartInstructions.style.display = 'block';
+    // Optionally display win/lose message
 }
 
-let animationFrameId; // To store the requestAnimationFrame ID
+// Event Listeners
+window.addEventListener('keydown', (e) => {
+    keys[e.key] = true;
 
-function gameLoop() {
-    update();
-    draw();
-    if (!gameOver) {
-        animationFrameId = requestAnimationFrame(gameLoop);
+    if (e.key === ' ' && !gameOver) { // Spacebar to fire
+        const currentTime = Date.now();
+        if (currentTime - lastPlayerFireTime > playerFireCooldown) {
+            if (hasDoubleShot) {
+                playerBullets.push(new Bullet(player.x + player.width / 4, player.y, 'lime', BULLET_SPEED, 'player'));
+                playerBullets.push(new Bullet(player.x + player.width * 3 / 4, player.y, 'lime', BULLET_SPEED, 'player'));
+            } else {
+                playerBullets.push(new Bullet(player.x + player.width / 2, player.y, 'lime', BULLET_SPEED, 'player'));
+            }
+            lastPlayerFireTime = currentTime;
+        }
+    }
+
+    if (e.key === 'R' || e.key === 'r' && gameOver) {
+        restartGame();
+    }
+});
+
+window.addEventListener('keyup', (e) => {
+    keys[e.key] = false;
+});
+
+// Shop Logic
+shopButton.addEventListener('click', () => {
+    shopModal.style.display = 'block';
+    updateShopUI();
+});
+
+closeModal.addEventListener('click', () => {
+    shopModal.style.display = 'none';
+});
+
+window.addEventListener('click', (event) => {
+    if (event.target === shopModal) {
+        shopModal.style.display = 'none';
+    }
+});
+
+buyDoubleShotBtn.addEventListener('click', () => {
+    if (!hasDoubleShot && score >= DOUBLE_SHOT_COST) {
+        score -= DOUBLE_SHOT_COST;
+        hasDoubleShot = true;
+        scoreDisplay.textContent = `Score: ${score}`;
+        updateShopUI();
+    } else if (hasDoubleShot) {
+        alert('Double Shot already purchased!');
     } else {
-        cancelAnimationFrame(animationFrameId); // Stop the loop when game is over
+        alert('Not enough score!');
+    }
+});
+
+buyFireRateBtn.addEventListener('click', () => {
+    const currentFireRateCost = FIRE_RATE_BASE_COST * (fireRateLevel + 1);
+    if (fireRateLevel < MAX_FIRE_RATE_LEVEL && score >= currentFireRateCost) {
+        score -= currentFireRateCost;
+        fireRateLevel++;
+        playerFireCooldown = Math.max(50, playerFireCooldown - FIRE_RATE_COOLDOWN_REDUCTION_PER_LEVEL); // Cap minimum cooldown
+        scoreDisplay.textContent = `Score: ${score}`;
+        updateShopUI();
+    } else if (fireRateLevel >= MAX_FIRE_RATE_LEVEL) {
+        alert('Max Fire Rate level reached!');
+    } else {
+        alert('Not enough score!');
+    }
+});
+
+function updateShopUI() {
+    currentScoreDisplay.textContent = `Current Score: ${score}`;
+
+    // Double Shot
+    doubleShotCostDisplay.textContent = DOUBLE_SHOT_COST;
+    if (hasDoubleShot) {
+        buyDoubleShotBtn.textContent = 'Double Shot (Purchased)';
+        buyDoubleShotBtn.disabled = true;
+        buyDoubleShotBtn.style.backgroundColor = '#555';
+    } else {
+        buyDoubleShotBtn.textContent = `Double Shot (${DOUBLE_SHOT_COST} Score)`;
+        buyDoubleShotBtn.disabled = score < DOUBLE_SHOT_COST;
+        buyDoubleShotBtn.style.backgroundColor = score >= DOUBLE_SHOT_COST ? '#28a745' : '#ccc';
+    }
+
+    // Fire Rate
+    const nextFireRateCost = FIRE_RATE_BASE_COST * (fireRateLevel + 1);
+    fireRateCostDisplay.textContent = nextFireRateCost;
+    fireRateLevelDisplay.textContent = fireRateLevel;
+    maxFireRateLevelDisplay.textContent = MAX_FIRE_RATE_LEVEL;
+
+    if (fireRateLevel >= MAX_FIRE_RATE_LEVEL) {
+        buyFireRateBtn.textContent = 'Increased Fire Rate (Max Level)';
+        buyFireRateBtn.disabled = true;
+        buyFireRateBtn.style.backgroundColor = '#555';
+    } else {
+        buyFireRateBtn.textContent = `Increased Fire Rate (${nextFireRateCost} Score) - Level ${fireRateLevel}/${MAX_FIRE_RATE_LEVEL}`;
+        buyFireRateBtn.disabled = score < nextFireRateCost;
+        buyFireRateBtn.style.backgroundColor = score >= nextFireRateCost ? '#007bff' : '#ccc';
     }
 }
 
 function restartGame() {
-    cancelAnimationFrame(animationFrameId); // Ensure any pending animation frame is cancelled
     init();
+    requestAnimationFrame(gameLoop); // Restart the game loop
 }
 
-// Input Handling
-document.addEventListener('keydown', e => {
-    if (gameOver) {
-        if (e.key === 'r' || e.key === 'R') {
-            restartGame();
-        }
-        return;
-    }
-    if (e.key === 'ArrowLeft') {
-        player.dx = -PLAYER_SPEED;
-    } else if (e.key === 'ArrowRight') {
-        player.dx = PLAYER_SPEED;
-    } else if (e.key === ' ') { // Spacebar for shooting
-        player.shoot();
-    }
-});
-
-document.addEventListener('keyup', e => {
-    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-        player.dx = 0;
-    }
-});
-
+// Initial game setup
 init();
+requestAnimationFrame(gameLoop);
