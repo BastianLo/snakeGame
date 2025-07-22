@@ -72,11 +72,12 @@ function createPlayer() {
         dx: 0,
         image: playerImage // Assign loaded image
     };
+    console.log("Player created:", player);
 }
 
 // Enemy object
 function createEnemy(x, y) {
-    return {
+    const enemy = {
         x: x,
         y: y,
         width: 40,
@@ -85,6 +86,8 @@ function createEnemy(x, y) {
         dy: 0,
         image: enemyImage // Assign loaded image
     };
+    console.log("Enemy created:", enemy);
+    return enemy;
 }
 
 // Bullet object
@@ -105,6 +108,7 @@ function init() {
         console.error("Canvas or context not found.");
         return;
     }
+    console.log("Initializing game...");
 
     createPlayer();
     enemies = [];
@@ -131,7 +135,8 @@ function init() {
     updateShopUI(); // Update shop state on init
 
     if (gameInterval) clearInterval(gameInterval); // Clear any existing interval
-    gameLoop(); // Start the game loop
+    requestAnimationFrame(gameLoop); // Start the game loop
+    console.log("Game initialized and loop started.");
 }
 
 // Game loop
@@ -143,7 +148,7 @@ function gameLoop() {
     update();
     draw();
 
-    requestAnimationFrame(gameLoop);
+    gameInterval = requestAnimationFrame(gameLoop);
 }
 
 // Update game state
@@ -276,6 +281,7 @@ function spawnEnemies() {
             enemies.push(newEnemy);
         }
     }
+    console.log("Enemies spawned:", enemies.length);
 }
 
 // Continuous enemy spawning for endless game
@@ -321,6 +327,9 @@ function draw() {
 function drawPlayer() {
     if (player && player.image && player.image.complete) {
         ctx.drawImage(player.image, player.x, player.y, player.width, player.height);
+        // console.log("Drawing player at:", player.x, player.y);
+    } else {
+        // console.log("Player or player image not ready for drawing.", player);
     }
 }
 
@@ -328,6 +337,9 @@ function drawEnemies() {
     enemies.forEach(enemy => {
         if (enemy && enemy.image && enemy.image.complete) {
             ctx.drawImage(enemy.image, enemy.x, enemy.y, enemy.width, enemy.height);
+            // console.log("Drawing enemy at:", enemy.x, enemy.y);
+        } else {
+            // console.log("Enemy or enemy image not ready for drawing.", enemy);
         }
     });
 }
@@ -355,6 +367,11 @@ function drawScore() {
 function endGame() {
     gameOver = true;
     gameOverScreen.style.display = 'flex';
+    if (gameInterval) {
+        cancelAnimationFrame(gameInterval); // Stop game loop
+        gameInterval = null; // Clear interval ID
+    }
+    console.log("Game Over!");
 }
 
 // Restart game
@@ -363,8 +380,14 @@ restartButton.addEventListener('click', () => {
 });
 
 function restartGame() {
-    cancelAnimationFrame(gameInterval); // Stop any ongoing animation frame loop
-    init(); // Reinitialize all game variables and start new loop
+    console.log("Restarting game...");
+    if (gameInterval) {
+        cancelAnimationFrame(gameInterval); // Stop any ongoing animation frame loop
+        gameInterval = null;
+    }
+    // Re-initialize all game variables and start new loop
+    assetsLoadedCount = 0; // Reset for a full re-load check (if needed, though init should handle it)
+    loadGameAssets(); // Re-load assets and then init
 }
 
 // Shop System
@@ -432,25 +455,26 @@ function updateShopUI() {
 
 // --- Asset Loading and Game Start ---
 function loadGameAssets() {
-    playerImage.src = 'assets/player.png'; // Assuming player.png is in an 'assets' folder
-    enemyImage.src = 'assets/enemy.png';   // Assuming enemy.png is in an 'assets' folder
+    console.log("Loading game assets...");
+    let loadedAssets = 0;
 
-    playerImage.onload = () => {
-        assetsLoadedCount++;
-        if (assetsLoadedCount === totalAssetsToLoad) {
-            init(); // Start the game only after all assets are loaded
-        }
-    };
-    enemyImage.onload = () => {
-        assetsLoadedCount++;
-        if (assetsLoadedCount === totalAssetsToLoad) {
+    const onAssetLoad = () => {
+        loadedAssets++;
+        console.log(`Asset loaded. Total loaded: ${loadedAssets}/${totalAssetsToLoad}`);
+        if (loadedAssets === totalAssetsToLoad) {
+            console.log("All assets loaded. Starting game initialization.");
             init(); // Start the game only after all assets are loaded
         }
     };
 
-    // Optional: Error handling for images
+    playerImage.onload = onAssetLoad;
+    enemyImage.onload = onAssetLoad;
+
     playerImage.onerror = () => { console.error("Failed to load player image: assets/player.png"); };
     enemyImage.onerror = () => { console.error("Failed to load enemy image: assets/enemy.png"); };
+
+    playerImage.src = 'assets/player.png'; // Assuming player.png is in an 'assets' folder
+    enemyImage.src = 'assets/enemy.png';   // Assuming enemy.png is in an 'assets' folder
 }
 
 // Start the asset loading process
