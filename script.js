@@ -14,6 +14,18 @@ const fireRateCostDisplay = document.getElementById('fireRateCost');
 const currentScoreDisplay = document.getElementById('currentScoreDisplay');
 const finalScoreDisplay = document.getElementById('finalScore'); // Get final score display element
 
+// New shop elements
+const lifeUpgradeButton = document.getElementById('lifeUpgradeButton');
+const lifeUpgradeCostDisplay = document.getElementById('lifeUpgradeCost');
+const lifeUpgradeLevelDisplay = document.getElementById('lifeUpgradeLevel');
+const sidewayShotsButton = document.getElementById('sidewayShotsButton');
+const sidewayShotsCostDisplay = document.getElementById('sidewayShotsCost');
+const bulletSpeedButton = document.getElementById('bulletSpeedButton');
+const bulletSpeedCostDisplay = document.getElementById('bulletSpeedCost');
+const bulletSpeedLevelDisplay = document.getElementById('bulletSpeedLevel');
+const playerLivesDisplay = document.getElementById('playerLivesDisplay');
+
+
 canvas.width = 600;
 canvas.height = 700;
 
@@ -26,6 +38,7 @@ let score = 0; // Score for the current run, will be added to persistentScore on
 let gameOver = false;
 let gameInterval;
 let level = 1;
+let playerLives; // Current lives for the game run, initialized from persistentPlayerLives
 
 // Difficulty scaling
 let currentEnemySpeed = 1;
@@ -37,6 +50,7 @@ let lastEnemySpawnTime = 0;
 // Player firing cooldown
 let lastPlayerFireTime = 0;
 let playerFireCooldown = 200; // milliseconds between shots (initial)
+let playerBulletSpeed = -7; // Initial player bullet speed
 
 // Upgrade System Variables - these will be persistent
 let hasDoubleShot = false;
@@ -46,10 +60,23 @@ const DOUBLE_SHOT_COST = 500;
 const FIRE_RATE_BASE_COST = 200;
 const FIRE_RATE_COOLDOWN_REDUCTION_PER_LEVEL = 30; // ms reduction per level
 
+// New Upgrade System Variables
+let hasSidewayShots = false;
+let bulletSpeedLevel = 0;
+const MAX_BULLET_SPEED_LEVEL = 3;
+const SIDEWAY_SHOTS_COST = 1500;
+const BULLET_SPEED_COST_BASE = 600;
+const BULLET_SPEED_INCREASE_PER_LEVEL = 2; // pixel speed increase
+
 // Persistent game state variables
 let persistentScore = 0;
 let persistentHasDoubleShot = false;
 let persistentFireRateLevel = 0;
+let persistentPlayerLives = 3; // Initial lives stored persistently
+const MAX_PLAYER_LIVES = 5;
+let persistentHasSidewayShots = false;
+let persistentBulletSpeedLevel = 0;
+
 
 // Image assets
 let playerImage = new Image();
@@ -96,14 +123,15 @@ function createEnemy(x, y) {
     return enemy;
 }
 
-// Bullet object
-function createBullet(x, y, isPlayerBullet = true) {
+// Bullet object - Modified to accept dx and dy for angled shots
+function createBullet(x, y, dx, dy, isPlayerBullet = true) {
     return {
         x: x,
         y: y,
         width: 5,
         height: 15,
-        speed: isPlayerBullet ? -7 : 5,
+        dx: dx, // Horizontal speed
+        dy: dy, // Vertical speed
         isPlayerBullet: isPlayerBullet
     };
 }
@@ -112,8 +140,11 @@ function createBullet(x, y, isPlayerBullet = true) {
 function saveGameState() {
     const gameState = {
         score: persistentScore, // Save the accumulated persistent score
-        hasDoubleShot: hasDoubleShot, // Save current state of upgrades
-        fireRateLevel: fireRateLevel
+        hasDoubleShot: persistentHasDoubleShot, // Save current state of upgrades
+        fireRateLevel: persistentFireRateLevel,
+        playerLives: persistentPlayerLives,
+        hasSidewayShots: persistentHasSidewayShots,
+        bulletSpeedLevel: persistentBulletSpeedLevel
     };
     localStorage.setItem('spaceInvadersGameState', JSON.stringify(gameState));
     console.log("Game state saved:", gameState);
@@ -127,20 +158,31 @@ function loadGameState() {
         persistentScore = gameState.score !== undefined ? gameState.score : 0;
         persistentHasDoubleShot = gameState.hasDoubleShot !== undefined ? gameState.hasDoubleShot : false;
         persistentFireRateLevel = gameState.fireRateLevel !== undefined ? gameState.fireRateLevel : 0;
+        persistentPlayerLives = gameState.playerLives !== undefined ? gameState.playerLives : 3;
+        persistentHasSidewayShots = gameState.hasSidewayShots !== undefined ? gameState.hasSidewayShots : false;
+        persistentBulletSpeedLevel = gameState.bulletSpeedLevel !== undefined ? gameState.bulletSpeedLevel : 0;
         console.log("Game state loaded:", gameState);
     } else {
         console.log("No saved game state found. Initializing with defaults.");
         persistentScore = 0;
         persistentHasDoubleShot = false;
         persistentFireRateLevel = 0;
+        persistentPlayerLives = 3;
+        persistentHasSidewayShots = false;
+        persistentBulletSpeedLevel = 0;
     }
 
     // Apply loaded persistent values to current game run
     score = 0; // Current run's score starts at 0
     hasDoubleShot = persistentHasDoubleShot;
     fireRateLevel = persistentFireRateLevel;
+    playerLives = persistentPlayerLives; // Set current lives for the run
+    hasSidewayShots = persistentHasSidewayShots;
+    bulletSpeedLevel = persistentBulletSpeedLevel;
+
     playerFireCooldown = 200 - (fireRateLevel * FIRE_RATE_COOLDOWN_REDUCTION_PER_LEVEL);
     playerFireCooldown = Math.max(50, playerFireCooldown); // Ensure minimum cooldown
+    playerBulletSpeed = -7 - (bulletSpeedLevel * BULLET_SPEED_INCREASE_PER_LEVEL); // Calculate current bullet speed
 }
 
 // Initialize game
@@ -167,6 +209,7 @@ function init() {
 
     scoreDisplay.textContent = `Score: ${score}`; // Display current run score
     finalScoreDisplay.textContent = `Final Score: ${score}`; // Set final score display to 0 for new game
+    playerLivesDisplay.textContent = `Lives: ${playerLives}`; // Display current lives
 
     gameOverScreen.style.display = 'none';
     shopModal.style.display = 'none';
@@ -224,35 +267,53 @@ function handlePlayerMovement() {
     if (keys['Space']) {
         const currentTime = performance.now();
         if (currentTime - lastPlayerFireTime > playerFireCooldown) {
+            // Main shot(s)
             if (hasDoubleShot) {
-                bullets.push(createBullet(player.x + player.width / 4, player.y));
-                bullets.push(createBullet(player.x + player.width - player.width / 4 - 5, player.y));
+                bullets.push(createBullet(player.x + player.width / 4, player.y, 0, playerBulletSpeed));
+                bullets.push(createBullet(player.x + player.width - player.width / 4 - 5, player.y, 0, playerBulletSpeed));
             } else {
-                bullets.push(createBullet(player.x + player.width / 2 - 2.5, player.y));
+                bullets.push(createBullet(player.x + player.width / 2 - 2.5, player.y, 0, playerBulletSpeed));
+            }
+
+            // Sideway shots
+            if (hasSidewayShots) {
+                const angleRad = Math.PI / 10; // 18 degrees, between 10-30 degrees
+                const bulletSpeedMagnitude = Math.abs(playerBulletSpeed); // Use magnitude for calculation
+                // Left sideway shot
+                const dxLeft = -bulletSpeedMagnitude * Math.sin(angleRad);
+                const dyLeft = playerBulletSpeed * Math.cos(angleRad); // dy is negative
+                bullets.push(createBullet(player.x + player.width / 2 - 2.5, player.y, dxLeft, dyLeft));
+
+                // Right sideway shot
+                const dxRight = bulletSpeedMagnitude * Math.sin(angleRad);
+                const dyRight = playerBulletSpeed * Math.cos(angleRad); // dy is negative
+                bullets.push(createBullet(player.x + player.width / 2 - 2.5, player.y, dxRight, dyRight));
             }
             lastPlayerFireTime = currentTime;
         }
     }
 }
 
-// Update bullets
+// Update bullets - Modified to use dx and dy
 function updateBullets() {
     // Player bullets
     bullets = bullets.filter(bullet => {
-        bullet.y += bullet.speed;
-        return bullet.y > 0;
+        bullet.x += bullet.dx; // Update x position
+        bullet.y += bullet.dy; // Update y position
+        return bullet.y > 0 && bullet.x > -bullet.width && bullet.x < canvas.width; // Keep bullets on screen
     });
 
     // Enemy bullets
     enemyBullets = enemyBullets.filter(bullet => {
-        bullet.y += bullet.speed;
-        return bullet.y < canvas.height;
+        bullet.x += bullet.dx;
+        bullet.y += bullet.dy;
+        return bullet.y < canvas.height && bullet.x > -bullet.width && bullet.x < canvas.width;
     });
 
     // Enemy shooting (simplified for continuous game)
     enemies.forEach(enemy => {
         if (Math.random() < 0.002 * level) { // Increased chance with level
-            enemyBullets.push(createBullet(enemy.x + enemy.width / 2 - 2.5, enemy.y + enemy.height, false));
+            enemyBullets.push(createBullet(enemy.x + enemy.width / 2 - 2.5, enemy.y + enemy.height, 0, 5, false));
         }
     });
 }
@@ -275,7 +336,7 @@ function updateEnemies() {
     }
 }
 
-// Check for collisions
+// Check for collisions - Modified for player lives
 function checkCollisions() {
     // Player bullets vs Enemies
     bullets.forEach((bullet, bIndex) => {
@@ -305,7 +366,11 @@ function checkCollisions() {
         ) {
             // Player hit!
             enemyBullets.splice(ebIndex, 1); // Remove bullet
-            endGame();
+            playerLives--;
+            playerLivesDisplay.textContent = `Lives: ${playerLives}`; // Update lives display
+            if (playerLives <= 0) {
+                endGame();
+            }
         }
     });
 }
@@ -452,32 +517,69 @@ window.addEventListener('click', (event) => {
 });
 
 doubleShotButton.addEventListener('click', () => {
-    if (persistentScore >= DOUBLE_SHOT_COST && !hasDoubleShot) {
+    if (persistentScore >= DOUBLE_SHOT_COST && !persistentHasDoubleShot) {
         persistentScore -= DOUBLE_SHOT_COST;
-        hasDoubleShot = true;
+        persistentHasDoubleShot = true;
+        hasDoubleShot = true; // Apply immediately to current game if in shop during gameplay
         updateShopUI();
-        scoreDisplay.textContent = `Score: ${score}`; // Score display in game remains for current run
         saveGameState(); // Save state immediately after purchase
     }
 });
 
 fireRateButton.addEventListener('click', () => {
-    const cost = FIRE_RATE_BASE_COST * (fireRateLevel + 1);
-    if (persistentScore >= cost && fireRateLevel < MAX_FIRE_RATE_LEVEL) {
+    const cost = FIRE_RATE_BASE_COST * (persistentFireRateLevel + 1);
+    if (persistentScore >= cost && persistentFireRateLevel < MAX_FIRE_RATE_LEVEL) {
         persistentScore -= cost;
-        fireRateLevel++;
-        playerFireCooldown = Math.max(50, playerFireCooldown - FIRE_RATE_COOLDOWN_REDUCTION_PER_LEVEL); // Minimum 50ms cooldown
+        persistentFireRateLevel++;
+        fireRateLevel = persistentFireRateLevel; // Apply immediately
+        playerFireCooldown = 200 - (fireRateLevel * FIRE_RATE_COOLDOWN_REDUCTION_PER_LEVEL);
+        playerFireCooldown = Math.max(50, playerFireCooldown); // Ensure minimum cooldown
         updateShopUI();
-        scoreDisplay.textContent = `Score: ${score}`; // Score display in game remains for current run
         saveGameState(); // Save state immediately after purchase
     }
 });
 
+// New upgrade button event listeners
+lifeUpgradeButton.addEventListener('click', () => {
+    const cost = LIFE_UPGRADE_COST_BASE * (persistentPlayerLives - 2); // Cost increases for each life purchased after initial 3
+    if (persistentScore >= cost && persistentPlayerLives < MAX_PLAYER_LIVES) {
+        persistentScore -= cost;
+        persistentPlayerLives++; // Increase persistent lives
+        playerLives = persistentPlayerLives; // Apply immediately to current game if in shop during gameplay
+        updateShopUI();
+        saveGameState();
+        playerLivesDisplay.textContent = `Lives: ${playerLives}`; // Update lives display
+    }
+});
+
+sidewayShotsButton.addEventListener('click', () => {
+    if (persistentScore >= SIDEWAY_SHOTS_COST && !persistentHasSidewayShots) {
+        persistentScore -= SIDEWAY_SHOTS_COST;
+        persistentHasSidewayShots = true;
+        hasSidewayShots = true; // Apply immediately
+        updateShopUI();
+        saveGameState();
+    }
+});
+
+bulletSpeedButton.addEventListener('click', () => {
+    const cost = BULLET_SPEED_COST_BASE * (persistentBulletSpeedLevel + 1);
+    if (persistentScore >= cost && persistentBulletSpeedLevel < MAX_BULLET_SPEED_LEVEL) {
+        persistentScore -= cost;
+        persistentBulletSpeedLevel++;
+        bulletSpeedLevel = persistentBulletSpeedLevel; // Apply immediately
+        playerBulletSpeed = -7 - (bulletSpeedLevel * BULLET_SPEED_INCREASE_PER_LEVEL);
+        updateShopUI();
+        saveGameState();
+    }
+});
+
+
 function updateShopUI() {
-    currentScoreDisplay.textContent = `Your Score: ${persistentScore}`; // Always show persistent score in shop
+    currentScoreDisplay.textContent = `Your Score: ${persistentScore}`;
 
     // Double Shot
-    if (hasDoubleShot) {
+    if (persistentHasDoubleShot) {
         doubleShotButton.textContent = 'Double Shot (Purchased)';
         doubleShotButton.disabled = true;
     } else {
@@ -488,16 +590,51 @@ function updateShopUI() {
 
 
     // Increased Fire Rate
-    const fireRateNextCost = FIRE_RATE_BASE_COST * (fireRateLevel + 1); // Use current fireRateLevel for cost calculation
-    if (fireRateLevel >= MAX_FIRE_RATE_LEVEL) {
+    const fireRateNextCost = FIRE_RATE_BASE_COST * (persistentFireRateLevel + 1);
+    if (persistentFireRateLevel >= MAX_FIRE_RATE_LEVEL) {
         fireRateButton.textContent = `Fire Rate (Max Level)`;
         fireRateButton.disabled = true;
     } else {
         fireRateButton.textContent = `Fire Rate (Cost: ${fireRateNextCost})`;
         fireRateButton.disabled = persistentScore < fireRateNextCost;
     }
-    fireRateLevelDisplay.textContent = `Level: ${fireRateLevel}/${MAX_FIRE_RATE_LEVEL}`;
+    fireRateLevelDisplay.textContent = `Level: ${persistentFireRateLevel}/${MAX_FIRE_RATE_LEVEL}`;
     fireRateCostDisplay.textContent = `${fireRateNextCost}`;
+
+    // Life Upgrade
+    const lifeNextCost = LIFE_UPGRADE_COST_BASE * (persistentPlayerLives - 2 + 1); // Cost for next life
+    if (persistentPlayerLives >= MAX_PLAYER_LIVES) {
+        lifeUpgradeButton.textContent = `Life Upgrade (Max Lives)`;
+        lifeUpgradeButton.disabled = true;
+    } else {
+        lifeUpgradeButton.textContent = `Life Upgrade (Cost: ${lifeNextCost})`;
+        lifeUpgradeButton.disabled = persistentScore < lifeNextCost;
+    }
+    lifeUpgradeLevelDisplay.textContent = `Lives: ${persistentPlayerLives}/${MAX_PLAYER_LIVES}`;
+    lifeUpgradeCostDisplay.textContent = `${lifeNextCost}`;
+
+
+    // Sideway Shots
+    if (persistentHasSidewayShots) {
+        sidewayShotsButton.textContent = 'Sideway Shots (Purchased)';
+        sidewayShotsButton.disabled = true;
+    } else {
+        sidewayShotsButton.textContent = `Sideway Shots (Cost: ${SIDEWAY_SHOTS_COST})`;
+        sidewayShotsButton.disabled = persistentScore < SIDEWAY_SHOTS_COST;
+    }
+    sidewayShotsCostDisplay.textContent = `${SIDEWAY_SHOTS_COST}`;
+
+    // Bullet Speed
+    const bulletSpeedNextCost = BULLET_SPEED_COST_BASE * (persistentBulletSpeedLevel + 1);
+    if (persistentBulletSpeedLevel >= MAX_BULLET_SPEED_LEVEL) {
+        bulletSpeedButton.textContent = `Bullet Speed (Max Level)`;
+        bulletSpeedButton.disabled = true;
+    } else {
+        bulletSpeedButton.textContent = `Bullet Speed (Cost: ${bulletSpeedNextCost})`;
+        bulletSpeedButton.disabled = persistentScore < bulletSpeedNextCost;
+    }
+    bulletSpeedLevelDisplay.textContent = `Level: ${persistentBulletSpeedLevel}/${MAX_BULLET_SPEED_LEVEL}`;
+    bulletSpeedCostDisplay.textContent = `${bulletSpeedNextCost}`;
 }
 
 // --- Asset Loading and Game Start ---
