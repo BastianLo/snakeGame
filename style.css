@@ -6,38 +6,156 @@ body {
     height: 100vh;
     margin: 0;
     overflow: hidden;
+    flex-direction: column; /* Added to stack elements vertically */
+    font-family: 'Press Start 2P', cursive; /* Apply font to body */
 }
 
-.game-container {
-    position: relative;
-    border: 2px solid #0f0;
-    box-shadow: 0 0 15px #0f0;
-}
-
-canvas {
-    background-color: #000;
-    display: block;
-}
-
-.score-display {
-    position: absolute;
-    top: 10px;
-    left: 10px;
+h1 {
     color: #0f0;
     font-family: 'Press Start 2P', cursive;
-    font-size: 20px;
+    text-align: center;
+    margin-bottom: 20px; /* Space between title and canvas */
 }
 
-.game-over-display {
-    position: absolute;
+#gameCanvas {
+    border: 2px solid #0f0;
+    box-shadow: 0 0 15px #0f0;
+    background-color: #000;
+    display: block; /* Ensure it's a block element */
+}
+
+#scoreDisplay {
+    position: relative; /* Changed from absolute to relative to flow with flex-direction: column */
+    margin-top: 10px;
+    color: #0f0;
+    font-size: 20px;
+    text-align: center;
+    width: 800px; /* Match canvas width for centering */
+}
+
+#gameOverScreen {
+    position: absolute; /* Keep absolute to overlay on game */
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
     color: #f00;
-    font-family: 'Press Start 2P', cursive;
     font-size: 40px;
     text-align: center;
     background-color: rgba(0, 0, 0, 0.7);
     padding: 20px;
     border-radius: 10px;
+    z-index: 2; /* Ensure it's above canvas */
+}
+
+#restartInstructions {
+    font-size: 20px;
+    margin-top: 10px;
+}
+
+/* Shop button styling */
+#shopButton {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    padding: 10px 20px;
+    font-family: 'Press Start 2P', cursive;
+    background-color: #0f0;
+    color: #000;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+    box-shadow: 0 0 10px #0f0;
+    z-index: 10; /* Ensure it's above other elements */
+}
+
+#shopButton:hover {
+    background-color: #0c0;
+}
+
+/* Modal styles */
+.modal {
+    display: none; /* Hidden by default */
+    position: fixed; /* Stay in place */
+    z-index: 100; /* Sit on top of everything */
+    left: 0;
+    top: 0;
+    width: 100%; /* Full width */
+    height: 100%; /* Full height */
+    overflow: auto; /* Enable scroll if needed */
+    background-color: rgba(0,0,0,0.8); /* Black w/ opacity */
+    justify-content: center; /* Center content horizontally */
+    align-items: center; /* Center content vertically */
+}
+
+.modal-content {
+    background-color: #333;
+    padding: 20px;
+    border: 1px solid #888;
+    width: 80%;
+    max-width: 500px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.6);
+    animation-name: animatetop;
+    animation-duration: 0.4s;
+    color: #0f0;
+    font-family: 'Press Start 2P', cursive;
+    text-align: center;
+    border-radius: 10px;
+    position: relative; /* For close button positioning */
+}
+
+/* Add an animation for the modal */
+@keyframes animatetop {
+    from {top: -300px; opacity: 0}
+    to {top: 0; opacity: 1}
+}
+
+/* The Close Button */
+.close-button {
+    color: #aaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+    position: absolute;
+    top: 10px;
+    right: 15px;
+}
+
+.close-button:hover,
+.close-button:focus {
+    color: #fff;
+    text-decoration: none;
+}
+
+/* Upgrade button styling */
+.upgrade-button {
+    background-color: #0a0;
+    color: #fff;
+    padding: 10px 15px;
+    margin: 10px auto; /* Center buttons */
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-family: 'Press Start 2P', cursive;
+    font-size: 14px;
+    width: 80%; /* Adjust width for better look within modal */
+    display: block; /* Make them block to stack vertically */
+    box-sizing: border-box;
+}
+
+.upgrade-button:hover:not(:disabled) {
+    background-color: #080;
+}
+
+.upgrade-button:disabled {
+    background-color: #555;
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+#currentScoreDisplay {
+    margin-bottom: 20px;
+    font-size: 18px;
+    color: #fff;
 }
