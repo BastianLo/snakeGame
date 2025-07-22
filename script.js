@@ -12,6 +12,7 @@ const fireRateLevelDisplay = document.getElementById('fireRateLevel');
 const doubleShotCostDisplay = document.getElementById('doubleShotCost');
 const fireRateCostDisplay = document.getElementById('fireRateCost');
 const currentScoreDisplay = document.getElementById('currentScoreDisplay');
+const finalScoreDisplay = document.getElementById('finalScore'); // Get final score display element
 
 canvas.width = 600;
 canvas.height = 700;
@@ -21,7 +22,7 @@ let player;
 let enemies = [];
 let bullets = [];
 let enemyBullets = [];
-let score = 0;
+let score = 0; // Score for the current run, will be added to persistentScore on game over
 let gameOver = false;
 let gameInterval;
 let level = 1;
@@ -37,13 +38,18 @@ let lastEnemySpawnTime = 0;
 let lastPlayerFireTime = 0;
 let playerFireCooldown = 200; // milliseconds between shots (initial)
 
-// Upgrade System Variables
+// Upgrade System Variables - these will be persistent
 let hasDoubleShot = false;
 let fireRateLevel = 0;
 const MAX_FIRE_RATE_LEVEL = 5;
 const DOUBLE_SHOT_COST = 500;
 const FIRE_RATE_BASE_COST = 200;
 const FIRE_RATE_COOLDOWN_REDUCTION_PER_LEVEL = 30; // ms reduction per level
+
+// Persistent game state variables
+let persistentScore = 0;
+let persistentHasDoubleShot = false;
+let persistentFireRateLevel = 0;
 
 // Image assets
 let playerImage = new Image();
@@ -102,6 +108,41 @@ function createBullet(x, y, isPlayerBullet = true) {
     };
 }
 
+// Function to save game state to localStorage
+function saveGameState() {
+    const gameState = {
+        score: persistentScore, // Save the accumulated persistent score
+        hasDoubleShot: hasDoubleShot,
+        fireRateLevel: fireRateLevel
+    };
+    localStorage.setItem('spaceInvadersGameState', JSON.stringify(gameState));
+    console.log("Game state saved:", gameState);
+}
+
+// Function to load game state from localStorage
+function loadGameState() {
+    const savedState = localStorage.getItem('spaceInvadersGameState');
+    if (savedState) {
+        const gameState = JSON.parse(savedState);
+        persistentScore = gameState.score !== undefined ? gameState.score : 0;
+        persistentHasDoubleShot = gameState.hasDoubleShot !== undefined ? gameState.hasDoubleShot : false;
+        persistentFireRateLevel = gameState.fireRateLevel !== undefined ? gameState.fireRateLevel : 0;
+        console.log("Game state loaded:", gameState);
+    } else {
+        console.log("No saved game state found. Initializing with defaults.");
+        persistentScore = 0;
+        persistentHasDoubleShot = false;
+        persistentFireRateLevel = 0;
+    }
+
+    // Apply loaded persistent values to current game run
+    score = 0; // Current run's score starts at 0
+    hasDoubleShot = persistentHasDoubleShot;
+    fireRateLevel = persistentFireRateLevel;
+    playerFireCooldown = 200 - (fireRateLevel * FIRE_RATE_COOLDOWN_REDUCTION_PER_LEVEL);
+    playerFireCooldown = Math.max(50, playerFireCooldown); // Ensure minimum cooldown
+}
+
 // Initialize game
 function init() {
     if (!canvas || !ctx) {
@@ -110,11 +151,12 @@ function init() {
     }
     console.log("Initializing game...");
 
+    loadGameState(); // Load persistent state first
+
     createPlayer();
     enemies = [];
     bullets = [];
     enemyBullets = [];
-    score = 0;
     gameOver = false;
     level = 1;
     currentEnemySpeed = 1;
@@ -122,11 +164,10 @@ function init() {
     enemyRows = 3;
     spawnInterval = 3000;
     lastEnemySpawnTime = performance.now(); // Initialize for continuous spawning
-    playerFireCooldown = 200;
-    hasDoubleShot = false;
-    fireRateLevel = 0;
 
-    scoreDisplay.textContent = `Score: ${score}`;
+    scoreDisplay.textContent = `Score: ${score}`; // Display current run score
+    finalScoreDisplay.textContent = `Final Score: ${score}`; // Set final score display to 0 for new game
+
     gameOverScreen.style.display = 'none';
     shopModal.style.display = 'none';
 
@@ -248,7 +289,7 @@ function checkCollisions() {
                 // Collision!
                 bullets.splice(bIndex, 1); // Remove bullet
                 enemies.splice(eIndex, 1); // Remove enemy
-                score += 10;
+                score += 10; // Current run score
                 scoreDisplay.textContent = `Score: ${score}`;
             }
         });
@@ -321,7 +362,8 @@ function draw() {
     drawEnemies();
     drawBullets();
     drawEnemyBullets();
-    drawScore();
+    // Score is updated in checkCollisions and init, no need to draw every frame.
+    // drawScore(); // This function updates scoreDisplay.textContent, which is handled elsewhere
 }
 
 function drawPlayer() {
@@ -358,15 +400,16 @@ function drawEnemyBullets() {
     });
 }
 
-function drawScore() {
-    scoreDisplay.textContent = `Score: ${score}`;
-}
-
-
 // Game over
 function endGame() {
     gameOver = true;
     gameOverScreen.style.display = 'flex';
+    // Add current run's score to the persistent score
+    persistentScore += score;
+    finalScoreDisplay.textContent = `Final Score: ${persistentScore}`; // Display total accumulated score
+
+    saveGameState(); // Save the updated state
+
     if (gameInterval) {
         cancelAnimationFrame(gameInterval); // Stop game loop
         gameInterval = null; // Clear interval ID
@@ -385,7 +428,7 @@ function restartGame() {
         cancelAnimationFrame(gameInterval); // Stop any ongoing animation frame loop
         gameInterval = null;
     }
-    // Re-initialize all game variables and start new loop
+    // Re-load assets and then init, which now loads persistent data
     assetsLoadedCount = 0; // Reset for a full re-load check (if needed, though init should handle it)
     loadGameAssets(); // Re-load assets and then init
 }
@@ -393,6 +436,8 @@ function restartGame() {
 // Shop System
 shopButton.addEventListener('click', () => {
     shopModal.style.display = 'block';
+    // When opening shop, update currentScoreDisplay with the persistent score
+    currentScoreDisplay.textContent = `Your Score: ${persistentScore}`;
     updateShopUI();
 });
 
@@ -407,27 +452,29 @@ window.addEventListener('click', (event) => {
 });
 
 doubleShotButton.addEventListener('click', () => {
-    if (score >= DOUBLE_SHOT_COST && !hasDoubleShot) {
-        score -= DOUBLE_SHOT_COST;
+    if (persistentScore >= DOUBLE_SHOT_COST && !hasDoubleShot) {
+        persistentScore -= DOUBLE_SHOT_COST;
         hasDoubleShot = true;
         updateShopUI();
-        scoreDisplay.textContent = `Score: ${score}`;
+        scoreDisplay.textContent = `Score: ${score}`; // Score display in game remains for current run
+        saveGameState(); // Save state immediately after purchase
     }
 });
 
 fireRateButton.addEventListener('click', () => {
     const cost = FIRE_RATE_BASE_COST * (fireRateLevel + 1);
-    if (score >= cost && fireRateLevel < MAX_FIRE_RATE_LEVEL) {
-        score -= cost;
+    if (persistentScore >= cost && fireRateLevel < MAX_FIRE_RATE_LEVEL) {
+        persistentScore -= cost;
         fireRateLevel++;
         playerFireCooldown = Math.max(50, playerFireCooldown - FIRE_RATE_COOLDOWN_REDUCTION_PER_LEVEL); // Minimum 50ms cooldown
         updateShopUI();
-        scoreDisplay.textContent = `Score: ${score}`;
+        scoreDisplay.textContent = `Score: ${score}`; // Score display in game remains for current run
+        saveGameState(); // Save state immediately after purchase
     }
 });
 
 function updateShopUI() {
-    currentScoreDisplay.textContent = `Your Score: ${score}`;
+    currentScoreDisplay.textContent = `Your Score: ${persistentScore}`; // Always show persistent score in shop
 
     // Double Shot
     if (hasDoubleShot) {
@@ -435,22 +482,22 @@ function updateShopUI() {
         doubleShotButton.disabled = true;
     } else {
         doubleShotButton.textContent = `Double Shot (Cost: ${DOUBLE_SHOT_COST})`;
-        doubleShotButton.disabled = score < DOUBLE_SHOT_COST;
+        doubleShotButton.disabled = persistentScore < DOUBLE_SHOT_COST;
     }
-    doubleShotCostDisplay.textContent = `Cost: ${DOUBLE_SHOT_COST}`;
+    doubleShotCostDisplay.textContent = `${DOUBLE_SHOT_COST}`;
 
 
     // Increased Fire Rate
-    const fireRateNextCost = FIRE_RATE_BASE_COST * (fireRateLevel + 1);
+    const fireRateNextCost = FIRE_RATE_BASE_COST * (persistentFireRateLevel + 1); // Use persistent level for cost calculation
     if (fireRateLevel >= MAX_FIRE_RATE_LEVEL) {
         fireRateButton.textContent = `Fire Rate (Max Level)`;
         fireRateButton.disabled = true;
     } else {
         fireRateButton.textContent = `Fire Rate (Cost: ${fireRateNextCost})`;
-        fireRateButton.disabled = score < fireRateNextCost;
+        fireRateButton.disabled = persistentScore < fireRateNextCost;
     }
     fireRateLevelDisplay.textContent = `Level: ${fireRateLevel}/${MAX_FIRE_RATE_LEVEL}`;
-    fireRateCostDisplay.textContent = `Cost: ${fireRateNextCost}`;
+    fireRateCostDisplay.textContent = `${fireRateNextCost}`;
 }
 
 // --- Asset Loading and Game Start ---
