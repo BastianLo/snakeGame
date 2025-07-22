@@ -176,7 +176,7 @@ function init() {
     enemiesPerRow = 5;
     enemyRows = 3;
     spawnInterval = 3000;
-    lastEnemySpawnTime = 0;
+    lastEnemySpawnTime = Date.now(); // Initialize for immediate spawn or controlled delay
     level = 0;
 
     // Reset upgrades
@@ -190,6 +190,7 @@ function init() {
     shopModal.style.display = 'none'; // Ensure shop is closed on restart
 
     updateShopUI(); // Update shop state on init
+    spawnEnemies(); // Spawn initial wave of enemies
 }
 
 // Game Loop
@@ -202,14 +203,14 @@ function gameLoop(timestamp) {
     const deltaTime = timestamp - (gameLoop.lastFrameTime || timestamp);
     gameLoop.lastFrameTime = timestamp;
 
-    update(deltaTime);
+    update(timestamp); // Pass timestamp to update for spawn logic
     draw();
 
     gameLoopId = requestAnimationFrame(gameLoop);
 }
 
 // Update game state
-function update(deltaTime) {
+function update(timestamp) {
     player.update();
 
     // Player bullets update and removal
@@ -329,7 +330,7 @@ window.addEventListener('keydown', (e) => {
         }
     }
 
-    if (e.key === 'R' || e.key === 'r' && gameOver) {
+    if ((e.key === 'R' || e.key === 'r') && gameOver) { // Only restart if game is over
         restartGame();
     }
 });
