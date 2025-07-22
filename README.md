@@ -17,6 +17,7 @@
     - [Upgrade System](#upgrade-system)
         - [Double Shot](#double-shot)
         - [Increased Fire Rate](#increased-fire-rate)
+    - [Persistent Progression (Roguelike Elements)](#persistent-progression-roguelike-elements)
 5. [User Interactions](#5-user-interactions)
     - [Main Menu](#main-menu)
     - [In-Game Controls](#in-game-controls)
@@ -64,7 +65,7 @@ Explain how projectiles are fired, their speed, and how they interact with enemi
 Describe how collisions are detected between player, enemies, projectiles, and any other game elements (e.g., barriers).
 
 ### Scoring
-Explain how points are awarded in the game (e.g., destroying enemies, special bonuses).
+Explain how points are awarded in the game (e.g., destroying enemies, special bonuses). The current score is dynamically displayed on the screen during gameplay, allowing players to track their progress in real-time.
 
 ### Game Over Conditions
 List the conditions that lead to a "Game Over" state (e.g., player health, enemies reaching the bottom).
@@ -85,7 +86,7 @@ Explain the mechanics of the limited fire rate.
 
 ### Upgrade System
 Detail the available upgrades and how they are acquired and applied.
-*   **Upgrade Acquisition:** [How players get upgrades, e.g., power-ups, in-game shop]
+*   **Upgrade Acquisition:** Players earn in-game currency (money) by defeating enemies. This money can then be spent in an upgrade shop to purchase various enhancements.
 *   **Upgrade Application:** [How upgrades are activated]
 
 #### Double Shot
@@ -93,6 +94,9 @@ Describe what the "Double Shot" upgrade does and its effects on gameplay.
 
 #### Increased Fire Rate
 Explain the impact of the "Increased Fire Rate" upgrade.
+
+### Persistent Progression (Roguelike Elements)
+The game incorporates roguelike elements through a persistent progression system. Money earned and upgrades purchased are saved between game sessions, allowing players to accumulate wealth and power over multiple runs. This means progress is not entirely lost upon game over, encouraging continuous play and strategic spending.
 
 ## 5. User Interactions
 ### Main Menu
