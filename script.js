@@ -112,7 +112,7 @@ function createBullet(x, y, isPlayerBullet = true) {
 function saveGameState() {
     const gameState = {
         score: persistentScore, // Save the accumulated persistent score
-        hasDoubleShot: hasDoubleShot,
+        hasDoubleShot: hasDoubleShot, // Save current state of upgrades
         fireRateLevel: fireRateLevel
     };
     localStorage.setItem('spaceInvadersGameState', JSON.stringify(gameState));
@@ -488,7 +488,7 @@ function updateShopUI() {
 
 
     // Increased Fire Rate
-    const fireRateNextCost = FIRE_RATE_BASE_COST * (persistentFireRateLevel + 1); // Use persistent level for cost calculation
+    const fireRateNextCost = FIRE_RATE_BASE_COST * (fireRateLevel + 1); // Use current fireRateLevel for cost calculation
     if (fireRateLevel >= MAX_FIRE_RATE_LEVEL) {
         fireRateButton.textContent = `Fire Rate (Max Level)`;
         fireRateButton.disabled = true;
