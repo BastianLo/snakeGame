@@ -139,6 +139,18 @@ If the game is designed to be extensible, explain how developers can add new fea
 ## 8. Troubleshooting
 Common issues and their solutions.
 
+### Invisible Player/Enemies Issue
+
+**Problem:**
+Initially, players and enemies were not visible on the screen, leading to a broken game experience. This was caused by game assets (specifically images for the player and enemy sprites) not being fully loaded into memory before the game attempted to draw them. The drawing functions were called on uninitialized or incomplete image objects, resulting in nothing being rendered.
+
+**Solution:**
+The issue was resolved by implementing a robust asset pre-loading mechanism.
+1.  **Image Pre-loading:** All necessary image assets for the player, enemies, projectiles, and background elements are now loaded into memory at the very beginning of the game's initialization phase.
+2.  **Asset Loading Check:** A system was put in place to ensure that the game loop and drawing operations do not commence until all critical assets have been successfully loaded. This often involves a loading screen or a simple check that delays the start of the main game until all resources are ready.
+
+This ensures that when drawing functions are called, valid image data is available, making the player and enemies visible and allowing the game to function as intended.
+
 ## 9. Future Enhancements
 Ideas or plans for future updates and features.
 
