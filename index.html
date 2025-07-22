@@ -12,6 +12,7 @@
     <div class="game-container">
         <canvas id="gameCanvas" width="800" height="600"></canvas>
         <div id="scoreDisplay" class="score-display">Score: 0</div>
+        <div id="playerLivesDisplay" class="lives-display">Lives: 3</div> <!-- New lives display -->
         <div id="gameOverScreen" class="game-over-display" style="display:none;">
             <p>GAME OVER!</p>
             <p id="finalScore">Final Score: 0</p>
@@ -31,6 +32,16 @@
             </button>
             <button id="fireRateButton" class="upgrade-button" data-upgrade="fireRate">
                 Increased Fire Rate (<span id="fireRateCost">200</span> Score) - Level <span id="fireRateLevel">0</span>/<span id="maxFireRateLevel">5</span>
+            </button>
+            <!-- New Upgrade Buttons -->
+            <button id="lifeUpgradeButton" class="upgrade-button" data-upgrade="lifeUpgrade">
+                Life Upgrade (<span id="lifeUpgradeCost">X</span> Score) - Lives <span id="lifeUpgradeLevel">3</span>/<span id="maxPlayerLives">5</span>
+            </button>
+            <button id="sidewayShotsButton" class="upgrade-button" data-upgrade="sidewayShots">
+                Sideway Shots (<span id="sidewayShotsCost">1500</span> Score)
+            </button>
+            <button id="bulletSpeedButton" class="upgrade-button" data-upgrade="bulletSpeed">
+                Bullet Speed (<span id="bulletSpeedCost">X</span> Score) - Level <span id="bulletSpeedLevel">0</span>/<span id="maxBulletSpeedLevel">3</span>
             </button>
         </div>
     </div>
