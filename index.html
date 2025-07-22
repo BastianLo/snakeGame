@@ -9,12 +9,14 @@
 </head>
 <body>
     <h1>Space Invaders</h1>
-    <canvas id="gameCanvas" width="800" height="600"></canvas>
-    <div id="scoreDisplay">Score: 0</div>
-    <div id="gameOverScreen" style="display:none;">
-        <p>GAME OVER!</p>
-        <p id="finalScore">Final Score: 0</p>
-        <p id="restartInstructions" style="display:none;">Press 'R' to Restart</p>
+    <div class="game-container">
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+        <div id="scoreDisplay" class="score-display">Score: 0</div>
+        <div id="gameOverScreen" class="game-over-display" style="display:none;">
+            <p>GAME OVER!</p>
+            <p id="finalScore">Final Score: 0</p>
+            <p id="restartInstructions" style="display:none;">Press 'R' to Restart</p>
+        </div>
     </div>
     <button id="shopButton">Shop</button>
 
