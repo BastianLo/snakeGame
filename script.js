@@ -1,350 +1,402 @@
-
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const scoreDisplay = document.getElementById('scoreDisplay');
 const gameOverScreen = document.getElementById('gameOverScreen');
-const finalScoreDisplay = document.getElementById('finalScore');
-const restartInstructions = document.getElementById('restartInstructions');
+const restartButton = document.getElementById('restartButton');
 const shopButton = document.getElementById('shopButton');
 const shopModal = document.getElementById('shopModal');
-const closeModal = document.querySelector('.close-button');
-const currentScoreDisplay = document.getElementById('currentScoreDisplay');
-const buyDoubleShotBtn = document.getElementById('buyDoubleShot');
-const buyFireRateBtn = document.getElementById('buyFireRate');
+const closeButton = document.querySelector('.close-button');
+const doubleShotButton = document.getElementById('doubleShotButton');
+const fireRateButton = document.getElementById('fireRateButton');
+const fireRateLevelDisplay = document.getElementById('fireRateLevel');
 const doubleShotCostDisplay = document.getElementById('doubleShotCost');
 const fireRateCostDisplay = document.getElementById('fireRateCost');
-const fireRateLevelDisplay = document.getElementById('fireRateLevel');
-const maxFireRateLevelDisplay = document.getElementById('maxFireRateLevel');
+const currentScoreDisplay = document.getElementById('currentScoreDisplay');
 
+canvas.width = 600;
+canvas.height = 700;
 
-// Game settings
-const PLAYER_SPEED = 5;
-const BULLET_SPEED = 7;
-const ENEMY_BULLET_SPEED = 3;
-const ENEMY_DESCENT_SPEED = 15; // How much enemies move down after reaching edge
-let INITIAL_ENEMY_SPEED = 1;
-
-// Upgrade costs
-const DOUBLE_SHOT_COST = 500;
-const FIRE_RATE_BASE_COST = 200;
-const MAX_FIRE_RATE_LEVEL = 5;
-const FIRE_RATE_COOLDOWN_REDUCTION_PER_LEVEL = 50; // ms
-
-// Game state variables
+// Game variables
 let player;
-let playerBullets = [];
 let enemies = [];
+let bullets = [];
 let enemyBullets = [];
 let score = 0;
 let gameOver = false;
-let gameLoopId; // To store requestAnimationFrame ID for stopping
-let keys = {}; // To track pressed keys
+let gameInterval;
+let level = 1;
 
 // Difficulty scaling
-let enemySpeedMultiplier = 1;
-let currentEnemySpeed = INITIAL_ENEMY_SPEED;
-let enemiesPerRow = 5; // Initial number of enemies
-let enemyRows = 3; // Initial number of rows
-let spawnInterval = 3000; // Time in ms between enemy spawns
+let currentEnemySpeed = 1;
+let enemiesPerRow = 5;
+let enemyRows = 3;
+let spawnInterval = 3000; // Time in ms between new enemy waves
 let lastEnemySpawnTime = 0;
-let level = 0; // Tracks difficulty level
 
-// Player Fire Rate
-let playerFireCooldown = 300; // milliseconds
+// Player firing cooldown
 let lastPlayerFireTime = 0;
+let playerFireCooldown = 200; // milliseconds between shots (initial)
 
-// Upgrades
+// Upgrade System Variables
 let hasDoubleShot = false;
 let fireRateLevel = 0;
+const MAX_FIRE_RATE_LEVEL = 5;
+const DOUBLE_SHOT_COST = 500;
+const FIRE_RATE_BASE_COST = 200;
+const FIRE_RATE_COOLDOWN_REDUCTION_PER_LEVEL = 30; // ms reduction per level
 
+// Image assets
+let playerImage = new Image();
+let enemyImage = new Image();
+let assetsLoadedCount = 0;
+const totalAssetsToLoad = 2; // player and enemy images
 
-// Game Entities
-class Player {
-    constructor() {
-        this.width = 50;
-        this.height = 30;
-        this.x = canvas.width / 2 - this.width / 2;
-        this.y = canvas.height - this.height - 10;
-        this.color = 'lime';
-    }
+// Key presses
+const keys = {};
 
-    draw() {
-        ctx.fillStyle = this.color;
-        ctx.fillRect(this.x, this.y, this.width, this.height);
-    }
+document.addEventListener('keydown', (e) => {
+    keys[e.code] = true;
+});
 
-    update() {
-        if (keys['ArrowLeft'] && this.x > 0) {
-            this.x -= PLAYER_SPEED;
-        }
-        if (keys['ArrowRight'] && this.x < canvas.width - this.width) {
-            this.x += PLAYER_SPEED;
-        }
-    }
+document.addEventListener('keyup', (e) => {
+    keys[e.code] = false;
+});
 
-    getRect() {
-        return { x: this.x, y: this.y, width: this.width, height: this.height };
-    }
+// Player object
+function createPlayer() {
+    player = {
+        x: canvas.width / 2 - 30,
+        y: canvas.height - 70,
+        width: 60,
+        height: 60,
+        dx: 0,
+        image: playerImage // Assign loaded image
+    };
+    console.log("Player created:", player);
 }
 
-class Bullet {
-    constructor(x, y, color, speed, type) {
-        this.width = 5;
-        this.height = 15;
-        this.x = x - this.width / 2;
-        this.y = y;
-        this.color = color;
-        this.speed = speed;
-        this.type = type; // 'player' or 'enemy'
-    }
-
-    draw() {
-        ctx.fillStyle = this.color;
-        ctx.fillRect(this.x, this.y, this.width, this.height);
-    }
-
-    update() {
-        this.y -= this.speed;
-    }
-
-    getRect() {
-        return { x: this.x, y: this.y, width: this.width, height: this.height };
-    }
+// Enemy object
+function createEnemy(x, y) {
+    const enemy = {
+        x: x,
+        y: y,
+        width: 40,
+        height: 40,
+        dx: currentEnemySpeed,
+        dy: 0,
+        image: enemyImage // Assign loaded image
+    };
+    console.log("Enemy created:", enemy);
+    return enemy;
 }
 
-class Enemy {
-    constructor(x, y) {
-        this.width = 40;
-        this.height = 30;
-        this.x = x;
-        this.y = y;
-        this.color = 'red';
-        this.direction = 1; // 1 for right, -1 for left
-        this.fireCooldown = Math.random() * 2000 + 1000; // 1 to 3 seconds
-        this.lastFireTime = Date.now();
-    }
-
-    draw() {
-        ctx.fillStyle = this.color;
-        ctx.fillRect(this.x, this.y, this.width, this.height);
-    }
-
-    update() {
-        this.x += currentEnemySpeed * this.direction;
-
-        // Check for boundary collision and change direction
-        if (this.x + this.width > canvas.width || this.x < 0) {
-            this.direction *= -1; // Reverse direction
-            this.y += ENEMY_DESCENT_SPEED; // Move down
-        }
-
-        // Enemy firing
-        if (Date.now() - this.lastFireTime > this.fireCooldown) {
-            enemyBullets.push(new Bullet(this.x + this.width / 2, this.y + this.height, 'orange', -ENEMY_BULLET_SPEED, 'enemy'));
-            this.lastFireTime = Date.now();
-            this.fireCooldown = Math.random() * 2000 + 1000; // Reset cooldown
-        }
-    }
-
-    getRect() {
-        return { x: this.x, y: this.y, width: this.width, height: this.height };
-    }
+// Bullet object
+function createBullet(x, y, isPlayerBullet = true) {
+    return {
+        x: x,
+        y: y,
+        width: 5,
+        height: 15,
+        speed: isPlayerBullet ? -7 : 5,
+        isPlayerBullet: isPlayerBullet
+    };
 }
 
-// Helper function for AABB collision detection
-function areColliding(rect1, rect2) {
-    return rect1.x < rect2.x + rect2.width &&
-           rect1.x + rect1.width > rect2.x &&
-           rect1.y < rect2.y + rect2.height &&
-           rect1.y + rect1.height > rect2.y;
-}
-
-// Game Initialization
+// Initialize game
 function init() {
-    // Reset all game state variables
-    player = new Player();
-    playerBullets = [];
+    if (!canvas || !ctx) {
+        console.error("Canvas or context not found.");
+        return;
+    }
+    console.log("Initializing game...");
+
+    createPlayer();
     enemies = [];
+    bullets = [];
     enemyBullets = [];
     score = 0;
     gameOver = false;
-    keys = {};
-
-    // Reset difficulty
-    enemySpeedMultiplier = 1;
-    currentEnemySpeed = INITIAL_ENEMY_SPEED;
+    level = 1;
+    currentEnemySpeed = 1;
     enemiesPerRow = 5;
     enemyRows = 3;
     spawnInterval = 3000;
-    lastEnemySpawnTime = 0;
-    level = 0;
-
-    // Reset upgrades
+    lastEnemySpawnTime = performance.now(); // Initialize for continuous spawning
+    playerFireCooldown = 200;
     hasDoubleShot = false;
     fireRateLevel = 0;
-    playerFireCooldown = 300; // Reset to default
 
     scoreDisplay.textContent = `Score: ${score}`;
     gameOverScreen.style.display = 'none';
-    restartInstructions.style.display = 'none';
-    shopModal.style.display = 'none'; // Ensure shop is closed on restart
+    shopModal.style.display = 'none';
+
+    spawnEnemies(); // Initial spawn
 
     updateShopUI(); // Update shop state on init
+
+    if (gameInterval) clearInterval(gameInterval); // Clear any existing interval
+    requestAnimationFrame(gameLoop); // Start the game loop
+    console.log("Game initialized and loop started.");
 }
 
-// Game Loop
-function gameLoop(timestamp) {
+// Game loop
+function gameLoop() {
     if (gameOver) {
-        cancelAnimationFrame(gameLoopId);
         return;
     }
 
-    const deltaTime = timestamp - (gameLoop.lastFrameTime || timestamp);
-    gameLoop.lastFrameTime = timestamp;
-
-    update(deltaTime);
+    update();
     draw();
 
-    gameLoopId = requestAnimationFrame(gameLoop);
+    gameInterval = requestAnimationFrame(gameLoop);
 }
 
 // Update game state
-function update(deltaTime) {
-    player.update();
+function update() {
+    if (!player) return; // Ensure player exists before updating
 
-    // Player bullets update and removal
-    playerBullets = playerBullets.filter(bullet => {
-        bullet.update();
-        return bullet.y > 0; // Keep bullets on screen
-    });
+    handlePlayerMovement();
+    updateBullets();
+    updateEnemies();
+    checkCollisions();
+    spawnNewEnemies();
 
-    // Enemy bullets update and removal
-    enemyBullets = enemyBullets.filter(bullet => {
-        bullet.update();
-        return bullet.y < canvas.height; // Keep bullets on screen
-    });
-
-    // Enemy update and spawning
-    enemies.forEach(enemy => enemy.update());
-
-    // Continuous enemy spawning and difficulty scaling
-    if (timestamp - lastEnemySpawnTime > spawnInterval) {
-        spawnEnemies();
-        lastEnemySpawnTime = timestamp;
-        level++; // Increment level for difficulty tracking
-
-        // Increase difficulty
-        currentEnemySpeed = INITIAL_ENEMY_SPEED * (1 + level * 0.1); // Speed increases per level
-        if (level % 5 === 0) { // Every 5 levels, increase enemies per row
-            enemiesPerRow++;
-            if (enemiesPerRow > 10) enemiesPerRow = 10; // Cap max enemies per row
-        }
-        spawnInterval = Math.max(1000, spawnInterval - 50); // Decrease spawn interval, with a min
-    }
-
-
-    // Collision detection
-    // Player bullets vs. Enemies
-    playerBullets.forEach((bullet, bIndex) => {
-        enemies.forEach((enemy, eIndex) => {
-            if (areColliding(bullet.getRect(), enemy.getRect())) {
-                playerBullets.splice(bIndex, 1);
-                enemies.splice(eIndex, 1);
-                score += 100;
-                scoreDisplay.textContent = `Score: ${score}`;
-                updateShopUI(); // Update score in shop
-            }
-        });
-    });
-
-    // Enemy bullets vs. Player
-    enemyBullets.forEach((bullet, bIndex) => {
-        if (areColliding(bullet.getRect(), player.getRect())) {
-            enemyBullets.splice(bIndex, 1);
-            endGame(false); // Player hit, game over
-        }
-    });
-
-    // Enemies vs. Player
+    // Check for game over condition (enemies reaching bottom)
     enemies.forEach(enemy => {
-        if (areColliding(enemy.getRect(), player.getRect())) {
-            endGame(false); // Enemy hit player, game over
-        }
-        if (enemy.y + enemy.height > canvas.height) {
-            endGame(false); // Enemy reached bottom, game over
+        if (enemy.y + enemy.height >= canvas.height - player.height) { // If enemy reaches player level or below
+            endGame();
         }
     });
-
-    // Win condition (if any, currently endless, so no win condition here)
-    // If (enemies.length === 0 && level > X) might be a win for a level-based game.
 }
 
-// Draw game elements
-function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear canvas
-    player.draw();
-    playerBullets.forEach(bullet => bullet.draw());
-    enemies.forEach(enemy => enemy.draw());
-    enemyBullets.forEach(bullet => bullet.draw());
-}
-
-// Spawn a wave of enemies
-function spawnEnemies() {
-    const startX = 50;
-    const startY = 50;
-    const enemySpacing = 60;
-
-    for (let r = 0; r < enemyRows; r++) {
-        for (let i = 0; i < enemiesPerRow; i++) {
-            const x = startX + i * enemySpacing;
-            const y = startY + r * enemySpacing;
-            enemies.push(new Enemy(x, y));
-        }
+// Handle player movement
+function handlePlayerMovement() {
+    player.dx = 0;
+    if (keys['ArrowLeft'] && player.x > 0) {
+        player.dx = -5;
     }
-}
+    if (keys['ArrowRight'] && player.x < canvas.width - player.width) {
+        player.dx = 5;
+    }
+    player.x += player.dx;
 
-// Game Over
-function endGame(win) {
-    gameOver = true;
-    gameOverScreen.style.display = 'block';
-    finalScoreDisplay.textContent = `Final Score: ${score}`;
-    restartInstructions.style.display = 'block';
-    // Optionally display win/lose message
-}
-
-// Event Listeners
-window.addEventListener('keydown', (e) => {
-    keys[e.key] = true;
-
-    if (e.key === ' ' && !gameOver) { // Spacebar to fire
-        const currentTime = Date.now();
+    if (keys['Space']) {
+        const currentTime = performance.now();
         if (currentTime - lastPlayerFireTime > playerFireCooldown) {
             if (hasDoubleShot) {
-                playerBullets.push(new Bullet(player.x + player.width / 4, player.y, 'lime', BULLET_SPEED, 'player'));
-                playerBullets.push(new Bullet(player.x + player.width * 3 / 4, player.y, 'lime', BULLET_SPEED, 'player'));
+                bullets.push(createBullet(player.x + player.width / 4, player.y));
+                bullets.push(createBullet(player.x + player.width - player.width / 4 - 5, player.y));
             } else {
-                playerBullets.push(new Bullet(player.x + player.width / 2, player.y, 'lime', BULLET_SPEED, 'player'));
+                bullets.push(createBullet(player.x + player.width / 2 - 2.5, player.y));
             }
             lastPlayerFireTime = currentTime;
         }
     }
+}
 
-    if (e.key === 'R' || e.key === 'r' && gameOver) {
-        restartGame();
+// Update bullets
+function updateBullets() {
+    // Player bullets
+    bullets = bullets.filter(bullet => {
+        bullet.y += bullet.speed;
+        return bullet.y > 0;
+    });
+
+    // Enemy bullets
+    enemyBullets = enemyBullets.filter(bullet => {
+        bullet.y += bullet.speed;
+        return bullet.y < canvas.height;
+    });
+
+    // Enemy shooting (simplified for continuous game)
+    enemies.forEach(enemy => {
+        if (Math.random() < 0.002 * level) { // Increased chance with level
+            enemyBullets.push(createBullet(enemy.x + enemy.width / 2 - 2.5, enemy.y + enemy.height, false));
+        }
+    });
+}
+
+// Update enemies
+function updateEnemies() {
+    let hitWall = false;
+    enemies.forEach(enemy => {
+        enemy.x += enemy.dx;
+        if (enemy.x + enemy.width > canvas.width || enemy.x < 0) {
+            hitWall = true;
+        }
+    });
+
+    if (hitWall) {
+        enemies.forEach(enemy => {
+            enemy.dx *= -1;
+            enemy.y += 20; // Move down
+        });
     }
+}
+
+// Check for collisions
+function checkCollisions() {
+    // Player bullets vs Enemies
+    bullets.forEach((bullet, bIndex) => {
+        enemies.forEach((enemy, eIndex) => {
+            if (
+                bullet.x < enemy.x + enemy.width &&
+                bullet.x + bullet.width > enemy.x &&
+                bullet.y < enemy.y + enemy.height &&
+                bullet.y + bullet.height > enemy.y
+            ) {
+                // Collision!
+                bullets.splice(bIndex, 1); // Remove bullet
+                enemies.splice(eIndex, 1); // Remove enemy
+                score += 10;
+                scoreDisplay.textContent = `Score: ${score}`;
+            }
+        });
+    });
+
+    // Enemy bullets vs Player
+    enemyBullets.forEach((bullet, ebIndex) => {
+        if (
+            bullet.x < player.x + player.width &&
+            bullet.x + bullet.width > player.x &&
+            bullet.y < player.y + player.height &&
+            bullet.y + bullet.height > player.y
+        ) {
+            // Player hit!
+            enemyBullets.splice(ebIndex, 1); // Remove bullet
+            endGame();
+        }
+    });
+}
+
+// Spawn initial enemies (or when starting a new wave)
+function spawnEnemies() {
+    enemies = []; // Clear existing enemies for a new wave
+    for (let row = 0; row < enemyRows; row++) {
+        for (let i = 0; i < enemiesPerRow; i++) {
+            const x = 50 + i * 80;
+            const y = 50 + row * 60;
+            const newEnemy = createEnemy(x, y);
+            newEnemy.dx = currentEnemySpeed; // Ensure new enemies have current speed
+            enemies.push(newEnemy);
+        }
+    }
+    console.log("Enemies spawned:", enemies.length);
+}
+
+// Continuous enemy spawning for endless game
+function spawnNewEnemies() {
+    const currentTime = performance.now();
+    if (currentTime - lastEnemySpawnTime > spawnInterval) {
+        lastEnemySpawnTime = currentTime;
+
+        // Increase difficulty over time
+        level++;
+        currentEnemySpeed += 0.1; // Increase speed
+        if (level % 5 === 0 && enemiesPerRow < 10) { // Add more enemies per row every 5 levels
+            enemiesPerRow++;
+        }
+        if (spawnInterval > 1000) { // Reduce spawn interval down to a minimum
+            spawnInterval -= 50;
+        }
+
+        // Spawn a new row of enemies
+        for (let i = 0; i < enemiesPerRow; i++) {
+            const x = 50 + i * 80;
+            const y = -60; // Spawn off-screen at the top
+            const newEnemy = createEnemy(x, y);
+            newEnemy.dx = currentEnemySpeed; // Ensure new enemies have current speed
+            enemies.push(newEnemy);
+        }
+        console.log(`Level: ${level}, Enemy Speed: ${currentEnemySpeed.toFixed(2)}, Spawn Interval: ${spawnInterval}ms, Enemies per row: ${enemiesPerRow}`);
+    }
+}
+
+
+// Drawing functions
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear canvas
+
+    drawPlayer();
+    drawEnemies();
+    drawBullets();
+    drawEnemyBullets();
+    drawScore();
+}
+
+function drawPlayer() {
+    if (player && player.image && player.image.complete) {
+        ctx.drawImage(player.image, player.x, player.y, player.width, player.height);
+        // console.log("Drawing player at:", player.x, player.y);
+    } else {
+        // console.log("Player or player image not ready for drawing.", player);
+    }
+}
+
+function drawEnemies() {
+    enemies.forEach(enemy => {
+        if (enemy && enemy.image && enemy.image.complete) {
+            ctx.drawImage(enemy.image, enemy.x, enemy.y, enemy.width, enemy.height);
+            // console.log("Drawing enemy at:", enemy.x, enemy.y);
+        } else {
+            // console.log("Enemy or enemy image not ready for drawing.", enemy);
+        }
+    });
+}
+
+function drawBullets() {
+    bullets.forEach(bullet => {
+        ctx.fillStyle = 'lime';
+        ctx.fillRect(bullet.x, bullet.y, bullet.width, bullet.height);
+    });
+}
+
+function drawEnemyBullets() {
+    enemyBullets.forEach(bullet => {
+        ctx.fillStyle = 'red';
+        ctx.fillRect(bullet.x, bullet.y, bullet.width, bullet.height);
+    });
+}
+
+function drawScore() {
+    scoreDisplay.textContent = `Score: ${score}`;
+}
+
+
+// Game over
+function endGame() {
+    gameOver = true;
+    gameOverScreen.style.display = 'flex';
+    if (gameInterval) {
+        cancelAnimationFrame(gameInterval); // Stop game loop
+        gameInterval = null; // Clear interval ID
+    }
+    console.log("Game Over!");
+}
+
+// Restart game
+restartButton.addEventListener('click', () => {
+    restartGame();
 });
 
-window.addEventListener('keyup', (e) => {
-    keys[e.key] = false;
-});
+function restartGame() {
+    console.log("Restarting game...");
+    if (gameInterval) {
+        cancelAnimationFrame(gameInterval); // Stop any ongoing animation frame loop
+        gameInterval = null;
+    }
+    // Re-initialize all game variables and start new loop
+    assetsLoadedCount = 0; // Reset for a full re-load check (if needed, though init should handle it)
+    loadGameAssets(); // Re-load assets and then init
+}
 
-// Shop Logic
+// Shop System
 shopButton.addEventListener('click', () => {
     shopModal.style.display = 'block';
     updateShopUI();
 });
 
-closeModal.addEventListener('click', () => {
+closeButton.addEventListener('click', () => {
     shopModal.style.display = 'none';
 });
 
@@ -354,71 +406,76 @@ window.addEventListener('click', (event) => {
     }
 });
 
-buyDoubleShotBtn.addEventListener('click', () => {
-    if (!hasDoubleShot && score >= DOUBLE_SHOT_COST) {
+doubleShotButton.addEventListener('click', () => {
+    if (score >= DOUBLE_SHOT_COST && !hasDoubleShot) {
         score -= DOUBLE_SHOT_COST;
         hasDoubleShot = true;
-        scoreDisplay.textContent = `Score: ${score}`;
         updateShopUI();
-    } else if (hasDoubleShot) {
-        alert('Double Shot already purchased!');
-    } else {
-        alert('Not enough score!');
+        scoreDisplay.textContent = `Score: ${score}`;
     }
 });
 
-buyFireRateBtn.addEventListener('click', () => {
-    const currentFireRateCost = FIRE_RATE_BASE_COST * (fireRateLevel + 1);
-    if (fireRateLevel < MAX_FIRE_RATE_LEVEL && score >= currentFireRateCost) {
-        score -= currentFireRateCost;
+fireRateButton.addEventListener('click', () => {
+    const cost = FIRE_RATE_BASE_COST * (fireRateLevel + 1);
+    if (score >= cost && fireRateLevel < MAX_FIRE_RATE_LEVEL) {
+        score -= cost;
         fireRateLevel++;
-        playerFireCooldown = Math.max(50, playerFireCooldown - FIRE_RATE_COOLDOWN_REDUCTION_PER_LEVEL); // Cap minimum cooldown
-        scoreDisplay.textContent = `Score: ${score}`;
+        playerFireCooldown = Math.max(50, playerFireCooldown - FIRE_RATE_COOLDOWN_REDUCTION_PER_LEVEL); // Minimum 50ms cooldown
         updateShopUI();
-    } else if (fireRateLevel >= MAX_FIRE_RATE_LEVEL) {
-        alert('Max Fire Rate level reached!');
-    } else {
-        alert('Not enough score!');
+        scoreDisplay.textContent = `Score: ${score}`;
     }
 });
 
 function updateShopUI() {
-    currentScoreDisplay.textContent = `Current Score: ${score}`;
+    currentScoreDisplay.textContent = `Your Score: ${score}`;
 
     // Double Shot
-    doubleShotCostDisplay.textContent = DOUBLE_SHOT_COST;
     if (hasDoubleShot) {
-        buyDoubleShotBtn.textContent = 'Double Shot (Purchased)';
-        buyDoubleShotBtn.disabled = true;
-        buyDoubleShotBtn.style.backgroundColor = '#555';
+        doubleShotButton.textContent = 'Double Shot (Purchased)';
+        doubleShotButton.disabled = true;
     } else {
-        buyDoubleShotBtn.textContent = `Double Shot (${DOUBLE_SHOT_COST} Score)`;
-        buyDoubleShotBtn.disabled = score < DOUBLE_SHOT_COST;
-        buyDoubleShotBtn.style.backgroundColor = score >= DOUBLE_SHOT_COST ? '#28a745' : '#ccc';
+        doubleShotButton.textContent = `Double Shot (Cost: ${DOUBLE_SHOT_COST})`;
+        doubleShotButton.disabled = score < DOUBLE_SHOT_COST;
     }
+    doubleShotCostDisplay.textContent = `Cost: ${DOUBLE_SHOT_COST}`;
 
-    // Fire Rate
-    const nextFireRateCost = FIRE_RATE_BASE_COST * (fireRateLevel + 1);
-    fireRateCostDisplay.textContent = nextFireRateCost;
-    fireRateLevelDisplay.textContent = fireRateLevel;
-    maxFireRateLevelDisplay.textContent = MAX_FIRE_RATE_LEVEL;
 
+    // Increased Fire Rate
+    const fireRateNextCost = FIRE_RATE_BASE_COST * (fireRateLevel + 1);
     if (fireRateLevel >= MAX_FIRE_RATE_LEVEL) {
-        buyFireRateBtn.textContent = 'Increased Fire Rate (Max Level)';
-        buyFireRateBtn.disabled = true;
-        buyFireRateBtn.style.backgroundColor = '#555';
+        fireRateButton.textContent = `Fire Rate (Max Level)`;
+        fireRateButton.disabled = true;
     } else {
-        buyFireRateBtn.textContent = `Increased Fire Rate (${nextFireRateCost} Score) - Level ${fireRateLevel}/${MAX_FIRE_RATE_LEVEL}`;
-        buyFireRateBtn.disabled = score < nextFireRateCost;
-        buyFireRateBtn.style.backgroundColor = score >= nextFireRateCost ? '#007bff' : '#ccc';
+        fireRateButton.textContent = `Fire Rate (Cost: ${fireRateNextCost})`;
+        fireRateButton.disabled = score < fireRateNextCost;
     }
+    fireRateLevelDisplay.textContent = `Level: ${fireRateLevel}/${MAX_FIRE_RATE_LEVEL}`;
+    fireRateCostDisplay.textContent = `Cost: ${fireRateNextCost}`;
 }
 
-function restartGame() {
-    init();
-    requestAnimationFrame(gameLoop); // Restart the game loop
+// --- Asset Loading and Game Start ---
+function loadGameAssets() {
+    console.log("Loading game assets...");
+    let loadedAssets = 0;
+
+    const onAssetLoad = () => {
+        loadedAssets++;
+        console.log(`Asset loaded. Total loaded: ${loadedAssets}/${totalAssetsToLoad}`);
+        if (loadedAssets === totalAssetsToLoad) {
+            console.log("All assets loaded. Starting game initialization.");
+            init(); // Start the game only after all assets are loaded
+        }
+    };
+
+    playerImage.onload = onAssetLoad;
+    enemyImage.onload = onAssetLoad;
+
+    playerImage.onerror = () => { console.error("Failed to load player image: assets/player.png"); };
+    enemyImage.onerror = () => { console.error("Failed to load enemy image: assets/enemy.png"); };
+
+    playerImage.src = 'assets/player.png'; // Assuming player.png is in an 'assets' folder
+    enemyImage.src = 'assets/enemy.png';   // Assuming enemy.png is in an 'assets' folder
 }
 
-// Initial game setup
-init();
-requestAnimationFrame(gameLoop);
+// Start the asset loading process
+loadGameAssets();

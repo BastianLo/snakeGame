@@ -9,12 +9,15 @@
 </head>
 <body>
     <h1>Space Invaders</h1>
-    <canvas id="gameCanvas" width="800" height="600"></canvas>
-    <div id="scoreDisplay">Score: 0</div>
-    <div id="gameOverScreen" style="display:none;">
-        <p>GAME OVER!</p>
-        <p id="finalScore">Final Score: 0</p>
-        <p id="restartInstructions" style="display:none;">Press 'R' to Restart</p>
+    <div class="game-container">
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+        <div id="scoreDisplay" class="score-display">Score: 0</div>
+        <div id="gameOverScreen" class="game-over-display" style="display:none;">
+            <p>GAME OVER!</p>
+            <p id="finalScore">Final Score: 0</p>
+            <button id="restartButton">Restart Game</button>
+            <p id="restartInstructions" style="display:none;">Press 'R' to Restart</p>
+        </div>
     </div>
     <button id="shopButton">Shop</button>
 
@@ -23,10 +26,10 @@
             <span class="close-button">&times;</span>
             <h2>Upgrade Shop</h2>
             <div id="currentScoreDisplay">Current Score: 0</div>
-            <button id="buyDoubleShot" class="upgrade-button" data-upgrade="doubleShot">
+            <button id="doubleShotButton" class="upgrade-button" data-upgrade="doubleShot">
                 Double Shot (<span id="doubleShotCost">500</span> Score)
             </button>
-            <button id="buyFireRate" class="upgrade-button" data-upgrade="fireRate">
+            <button id="fireRateButton" class="upgrade-button" data-upgrade="fireRate">
                 Increased Fire Rate (<span id="fireRateCost">200</span> Score) - Level <span id="fireRateLevel">0</span>/<span id="maxFireRateLevel">5</span>
             </button>
         </div>
