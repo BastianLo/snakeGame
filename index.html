@@ -3,12 +3,15 @@
 <head>
     <title>Space Invaders</title>
     <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
 </head>
 <body>
+    <h1>Space Invaders</h1>
     <div class="game-container">
         <canvas id="gameCanvas" width="800" height="600"></canvas>
         <div class="score-display">Score: <span id="score">0</span></div>
         <div class="game-over-display" id="gameOver" style="display:none;">GAME OVER</div>
+        <div class="restart-instructions" id="restartInstructions" style="display:none;">Press 'R' to restart</div>
     </div>
     <script src="script.js"></script>
 </body>
